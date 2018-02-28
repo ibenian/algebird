@@ -76,6 +76,11 @@ abstract class MinHasher[H](val numHashes: Int, val numBands: Int)(implicit n: N
     (1 to numHashFunctions).map{ i => MurmurHash128(r.nextLong) }
   }
 
+  protected val hashFunctions2 = {
+    val r = new scala.util.Random(seed)
+    (1 to numHashes).map{ i => MurmurHash128(r.nextLong) }
+  }
+
   /** Signature for empty set, needed to be a proper Monoid */
   val zero: MinHashSignature = MinHashSignature(buildArray{ maxHash })
 
@@ -116,6 +121,10 @@ abstract class MinHasher[H](val numHashes: Int, val numBands: Int)(implicit n: N
     MinHashSignature(bytes)
   }
 
+  def init2(value: String): MinHashSignature = init2 { _(value) }
+
+  def init2(fn: MurmurHash128 => (Long, Long)): MinHashSignature
+
   /** Useful for understanding the effects of numBands and numRows */
   val estimatedThreshold = math.pow(1.0 / numBands, 1.0 / numRows)
 
@@ -141,6 +150,14 @@ class MinHasher32(numHashes: Int, numBands: Int) extends MinHasher[Int](numHashe
   override def hashSize = 4
 
   override def maxHash = Int.MaxValue
+
+  override def init2(fn: MurmurHash128 => (Long, Long)): MinHashSignature = {
+    val buffer = ByteBuffer.allocate(numBytes)
+    hashFunctions2.foreach{ h =>
+      buffer.putInt(fn(h)._1.toInt)
+    }
+    MinHashSignature(buffer.array)
+  }
 
   override protected def buildArray(fn: => Int): Array[Byte] = {
     val byteBuffer = ByteBuffer.allocate(numBytes)
@@ -172,6 +189,14 @@ class MinHasher16(numHashes: Int, numBands: Int) extends MinHasher[Char](numHash
   override def hashSize = 2
 
   override def maxHash = Char.MaxValue
+
+  override def init2(fn: MurmurHash128 => (Long, Long)): MinHashSignature = {
+    val buffer = ByteBuffer.allocate(numBytes)
+    hashFunctions2.foreach{ h =>
+      buffer.putShort(fn(h)._1.toShort)
+    }
+    MinHashSignature(buffer.array)
+  }
 
   override protected def buildArray(fn: => Char): Array[Byte] = {
     val byteBuffer = ByteBuffer.allocate(numBytes)
